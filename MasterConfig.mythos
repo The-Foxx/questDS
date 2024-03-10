@@ -12,8 +12,5 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
-namespace QuestDS{
-    data string ProjectName = "QuestDS_Engine";
-    data string ProjectType = "engine";
-
-}
+data string ProjectName = "QuestDS_Engine";
+data string ProjectType = "engine";
