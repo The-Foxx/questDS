@@ -14,3 +14,10 @@
 
 data string ProjectName = "QuestDS_Engine";
 data string ProjectType = "engine";
+
+data string ProjectNativeSources = <
+
+"engine.cpp",
+"engine.h"
+
+>;
