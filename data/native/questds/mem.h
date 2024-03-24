@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include "base_types.h"
+
 void* dalloc(size_t size);
 void* dcalloc(size_t size, size_t count);
 void* drealloc(void* p, size_t new_size);
@@ -23,7 +25,7 @@ void* dset(void* Target, u8 Value, size_t Size);
 void* dmove(void* Dest, const void* Source, size_t Size);
 u32 dpow2(u32 In);
 
-namespace QDS {
+namespace DS {
     template <typename iType> struct dmem {
     private:
 
@@ -118,6 +120,16 @@ namespace QDS {
             }
 
             return Ptr + (ArraySize - 1);
+
+        }
+
+        inline iType* lastCopy(){
+            if (ArraySize == 0) {
+                return iType{};
+
+            }
+
+            return *(Ptr + (ArraySize - 1));
 
         }
 

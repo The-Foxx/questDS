@@ -24,8 +24,11 @@ void* dcalloc(size_t size, size_t count)
 {
     int total_size = count * size;
     void* p = malloc(total_size);
-    if (p)
-    memset(p, 0, total_size);
+    if (p) {
+        dset(p, 0, total_size);
+    
+    }
+
     return p;
 }
 
@@ -67,8 +70,8 @@ void* dcpy(void* Dest, const void* Source, size_t Size) {
 
 }
 
-void* dset(void* Target, register u8 Value, register size_t Size) {
-    register unsigned char *ptr = (unsigned char*)Target;
+void* dset(void* Target, u8 Value, size_t Size) {
+    unsigned char *ptr = (unsigned char*)Target;
     while (Size-- > 0)
     *ptr++ = Value;
     return Target;
