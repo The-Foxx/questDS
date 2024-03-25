@@ -22,10 +22,15 @@
 namespace DS{
     struct vr {
         inline static XrInstance Instance = XR_NULL_HANDLE;
+        inline static XrSystemId SystemId = 0;
 
     };
 
     void oxrEarlyInit();
     void oxrCheck(XrResult ExpressionResult, const char* Name);
+    XrBool32 debugCallbackHandleing(XrDebugUtilsMessageSeverityFlagsEXT Severity,
+                                    XrDebugUtilsMessageTypeFlagsEXT Type,
+                                    const XrDebugUtilsMessengerCallbackDataEXT* Data, void* UserData);
+    const char* xrResultStr(XrResult In);
 
 }

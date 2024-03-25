@@ -7,23 +7,25 @@ all : makecapk.apk
 
 # WARNING WARNING WARNING!  YOU ABSOLUTELY MUST OVERRIDE THE PROJECT NAME
 # you should also override these parameters, get your own signatre file and make your own manifest.
-APPNAME?=tsopenxrtest
+APPNAME?=DuniaDemo
 LABEL?=$(APPNAME)
 APKFILE ?= $(APPNAME).apk
-PACKAGENAME?=org.cnlohr.$(APPNAME)
+PACKAGENAME?=org.LepidopteraStudio.$(APPNAME)
 RAWDRAWANDROID?=lib/
 RAWDRAWANDROIDSRCS=$(RAWDRAWANDROID)/android_native_app_glue.c
-SRC?=tsopenxr/demo.c
+SRC?=main.c
 OXR_HEADERS?=lib/openxr/include
+TSOPENXR_HEADERS?=tsopenxr/
+ENGINE_SOURCES?= engine/*.cpp lib/android_native_app_glue.c lib/volk.c
 
 #We've tested it with android version 22, 24, 28, 29 and 30.
 #You can target something like Android 28, but if you set ANDROIDVERSION to say 22, then
 #Your app should (though not necessarily) support all the way back to Android 22. 
-ANDROIDVERSION=29
-ANDROIDTARGET=29
+ANDROIDVERSION=32
+ANDROIDTARGET=32
 #$(ANDROIDVERSION)
 #Default is to be strip down, but your app can override it.
-CFLAGS?=-ffunction-sections -Os -fdata-sections -Wall -fvisibility=hidden -I..
+CFLAGS?=-ffunction-sections -O2 -fdata-sections -Wall -fvisibility=hidden -I..
 LDFLAGS?=-Wl,--gc-sections -s
 ANDROID_FULLSCREEN?=y
 ADB?=/home/clara/Android/Sdk/platform-tools/adb
@@ -74,11 +76,11 @@ testsdk :
 	@echo "NDK:\t\t" $(NDK)
 	@echo "Build Tools:\t" $(BUILD_TOOLS)
 
-CFLAGS+=-Os -DANDROID -DAPPNAME=\"$(APPNAME)\"
+CFLAGS+=-O2 -DANDROID -DAPPNAME=\"$(APPNAME)\"
 ifeq (ANDROID_FULLSCREEN,y)
 CFLAGS +=-DANDROID_FULLSCREEN
 endif
-CFLAGS+= -I$(RAWDRAWANDROID)/rawdraw -I$(OXR_HEADERS) -I$(NDK)/sysroot/usr/include -I$(NDK)/sysroot/usr/include/android -I$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/include/android -fPIC -I$(RAWDRAWANDROID) -DANDROIDVERSION=$(ANDROIDVERSION)
+CFLAGS+= -I$(RAWDRAWANDROID)/rawdraw -I$(OXR_HEADERS) -I$(TSOPENXR_HEADERS) -I$(NDK)/sysroot/usr/include -I$(NDK)/sysroot/usr/include/android -I$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/include/android -fPIC -I$(RAWDRAWANDROID) -DANDROIDVERSION=$(ANDROIDVERSION)
 LDFLAGS += -lm -lGLESv3 -lEGL -landroid -llog
 LDFLAGS += -shared -uANativeActivity_onCreate
 
@@ -89,7 +91,8 @@ CC_x86_64=$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/x86_64-linux-android$(A
 AAPT:=$(BUILD_TOOLS)/aapt
 
 # Which binaries to build? Just comment/uncomment these lines:
-TARGETS += makecapk/lib/arm64-v8a/lib$(APPNAME).so
+TARGETS += makecapk/lib/arm64-v8a/libDisrupt_b64.so
+#TARGETS += makecapk/lib/arm64-v8a/lib$(APPNAME).so
 #TARGETS += makecapk/lib/armeabi-v7a/lib$(APPNAME).so
 #TARGETS += makecapk/lib/x86/lib$(APPNAME).so
 #TARGETS += makecapk/lib/x86_64/lib$(APPNAME).so
@@ -113,6 +116,19 @@ folders:
 	mkdir -p makecapk/lib/armeabi-v7a
 	mkdir -p makecapk/lib/x86
 	mkdir -p makecapk/lib/x86_64
+
+CPP_ARM64 := $(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/bin/aarch64-linux-android$(ANDROIDVERSION)-clang++
+CPPFLAGS_ARM64 := -m64
+CPP_LIB_SO := $(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so
+CPPFLAGS := -I./ -Ilib/openxr/include -std=c++17 -nostdinc++ -fvisibility=hidden -O2
+CPPLINK :=-Wl,-landroid -llog -shared -lopenxr_loader
+
+#TODO(clara): Make this not happen in the release build
+
+makecapk/lib/arm64-v8a/libDisrupt_b64.so : $(ENGINE_SOURCES)
+	mkdir -p makecapk/lib/arm64-v8a
+	$(CPP_ARM64) $(CPPFLAGS_ARM64) $(CPPFLAGS) -o $@ $^ \
+	-Llib/openxr_fb -L$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/$(ANDROIDVERSION) $(CPPLINK)
 
 makecapk/lib/arm64-v8a/lib$(APPNAME).so : $(ANDROIDSRCS)
 	mkdir -p makecapk/lib/arm64-v8a
@@ -145,6 +161,7 @@ makecapk.apk : $(TARGETS) $(EXTRA_ASSETS_TRIGGER) AndroidManifest.xml
 	mkdir -p makecapk/assets
 	cp -r apksrc/assets/* makecapk/assets
 	cp lib/openxr_fb/libopenxr_loader.so makecapk/lib/arm64-v8a/
+	cp $(CPP_LIB_SO) makecapk/lib/arm64-v8a/
 	rm -rf temp.apk
 	$(AAPT) package -f -F temp.apk -I $(ANDROIDSDK)/platforms/android-$(ANDROIDVERSION)/android.jar -M AndroidManifest.xml -S apksrc/res -A makecapk/assets -v --target-sdk-version $(ANDROIDTARGET)
 	unzip -o temp.apk -d makecapk
@@ -182,6 +199,9 @@ run : push
 	$(eval ACTIVITYNAME:=$(shell $(AAPT) dump badging $(APKFILE) | grep "launchable-activity" | cut -f 2 -d"'"))
 	$(ADB) shell am start -n $(PACKAGENAME)/$(ACTIVITYNAME)
 
+stop :
+	$(ADB) shell am force-stop $(PACKAGENAME)
+
 clean :
-	rm -rf temp.apk makecapk.apk makecapk $(APKFILE)
+	rm -rf temp.apk makecapk.apk makecapk $(APKFILE) $(APKFILE).idsig libengine.a
 

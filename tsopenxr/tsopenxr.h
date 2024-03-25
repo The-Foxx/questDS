@@ -17,6 +17,9 @@
 	
 	
 
+//NOTE(clara): We are not using tsopenxr but i am trying to figure out what bullshit android need for openxr to work !!!
+#define XR_USE_PLATFORM_ANDROID
+
 #ifndef _TSOPENXR_H
 #define _TSOPENXR_H
 

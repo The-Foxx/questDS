@@ -28,6 +28,7 @@
 
 #define LOGI(...) ((void)printf(__VA_ARGS__))
 #define LOGE(...) ((void)printf(__VA_ARGS__))
+#define APPNAME "QuestDS Engine"
 
 /* For debug builds, always enable the debug traces in this library */
 

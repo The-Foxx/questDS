@@ -15,6 +15,9 @@
 #pragma once
 
 namespace DS{
-    
+    struct vec2 {
+        float X, Y;
+
+    };
 
 }
