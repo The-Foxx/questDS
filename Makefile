@@ -5,6 +5,15 @@ all : makecapk.apk
 
 .PHONY : push run
 
+UPLOAD_COUNT=$(file < upload_count.txt)
+
+increment_upload_count:
+	$(eval UPLOAD_COUNT=$(shell echo $$(($(UPLOAD_COUNT)+1))))
+	@echo "Count of all the uploads to my quest 3 $(UPLOAD_COUNT) !!!!!"
+	@echo $(UPLOAD_COUNT) > upload_count.txt
+
+COMPILE_COUNT=$(file < compile_count.txt)
+
 # WARNING WARNING WARNING!  YOU ABSOLUTELY MUST OVERRIDE THE PROJECT NAME
 # you should also override these parameters, get your own signatre file and make your own manifest.
 APPNAME?=DuniaDemo
@@ -21,8 +30,8 @@ ENGINE_SOURCES?= engine/*.cpp lib/android_native_app_glue.c lib/volk.c
 #We've tested it with android version 22, 24, 28, 29 and 30.
 #You can target something like Android 28, but if you set ANDROIDVERSION to say 22, then
 #Your app should (though not necessarily) support all the way back to Android 22. 
-ANDROIDVERSION=32
-ANDROIDTARGET=32
+ANDROIDVERSION=30
+ANDROIDTARGET=30
 #$(ANDROIDVERSION)
 #Default is to be strip down, but your app can override it.
 CFLAGS?=-ffunction-sections -O2 -fdata-sections -Wall -fvisibility=hidden -I..
@@ -126,6 +135,9 @@ CPPLINK :=-Wl,-landroid -llog -shared -lopenxr_loader
 #TODO(clara): Make this not happen in the release build
 
 makecapk/lib/arm64-v8a/libDisrupt_b64.so : $(ENGINE_SOURCES)
+	$(eval COMPILE_COUNT=$(shell echo $$(($(COMPILE_COUNT)+1))))
+	@echo "Count of all engine compilation $(COMPILE_COUNT) !!!!!"
+	@echo $(COMPILE_COUNT) > compile_count.txt
 	mkdir -p makecapk/lib/arm64-v8a
 	$(CPP_ARM64) $(CPPFLAGS_ARM64) $(CPPFLAGS) -o $@ $^ \
 	-Llib/openxr_fb -L$(NDK)/toolchains/llvm/prebuilt/$(OS_NAME)/sysroot/usr/lib/aarch64-linux-android/$(ANDROIDVERSION) $(CPPLINK)
@@ -191,7 +203,7 @@ AndroidManifest.xml :
 uninstall : 
 	($(ADB) uninstall $(PACKAGENAME))||true
 
-push : makecapk.apk
+push : makecapk.apk increment_upload_count
 	@echo "Installing" $(PACKAGENAME)
 	$(ADB) install -r $(APKFILE)
 
@@ -204,4 +216,3 @@ stop :
 
 clean :
 	rm -rf temp.apk makecapk.apk makecapk $(APKFILE) $(APKFILE).idsig libengine.a
-
