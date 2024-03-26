@@ -12,6 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+#include "vr.h"
 #include "drivergfx_init.h"
 #include "drivergfx_renderer.h"
 #include "drivergfx_util.h"
@@ -32,6 +33,12 @@ namespace DS{
         u32 WantedInstanceExtensionCount = 0;
         char WantedInstanceExtensions[64][VK_MAX_EXTENSION_NAME_SIZE];
         char* WantedInstanceExtensionPtr[64];
+
+        u32 WantedDeviceExtensionCount = 0;
+        char WantedDeviceExtensions[64][VK_MAX_EXTENSION_NAME_SIZE];
+        char* WantedDeviceExtensionPtr[64];
+
+        volkInitialize();
 
         DSLOG_INFO(Ren, "Enumerating instance capabilities");
         {
@@ -108,12 +115,133 @@ namespace DS{
 
             XrVulkanInstanceCreateInfoKHR XrCreateInfo;
             XrCreateInfo.type = XR_TYPE_VULKAN_INSTANCE_CREATE_INFO_KHR;
+            XrCreateInfo.next = NULL;
+            XrCreateInfo.systemId = vr::SystemId;
+            XrCreateInfo.createFlags = 0;
+            XrCreateInfo.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+            XrCreateInfo.vulkanCreateInfo = &CreateInfo;
+            XrCreateInfo.vulkanAllocator = driverGfx::AllocCb;
 
-//            TODO(clara): Implement openxr vulkan init code here
-
-            VkResult InstanceResult = VK_SUCCESS;
-            //XrResult InstanceXrResult = xrCreateVulkanInstanceKHR(
+            PFN_xrCreateVulkanInstanceKHR InstanceFunc;
+            OXRC(xrGetInstanceProcAddr(vr::Instance, "xrCreateVulkanInstanceKHR", (PFN_vkVoidFunction*) & InstanceFunc));
+            VkResult InstanceResult;
+            XrResult InstanceXrResult = InstanceFunc(vr::Instance, &XrCreateInfo, &driverGfx::Instance, &InstanceResult);
             DSLOG_INFO(Ren, "Created Vulkan instance with code %i", (int)InstanceResult);
+            volkLoadInstance(driverGfx::Instance);
+
+        }
+        DSLOG_INFO(Ren, "Enumerating physical devices");
+        {
+            XrVulkanGraphicsDeviceGetInfoKHR DeviceInfo { XR_TYPE_VULKAN_GRAPHICS_DEVICE_GET_INFO_KHR };
+            DeviceInfo.next = NULL;
+            DeviceInfo.systemId = vr::SystemId;
+            DeviceInfo.vulkanInstance = driverGfx::Instance;
+
+            PFN_xrGetVulkanGraphicsDevice2KHR GetPhysDevice;
+            OXRC(xrGetInstanceProcAddr(vr::Instance, "xrGetVulkanGraphicsDevice2KHR", (PFN_xrVoidFunction*)&GetPhysDevice));
+            OXRC(GetPhysDevice(vr::Instance, &DeviceInfo, &driverGfx::PhysDevice));
+
+        }
+        DSLOG_INFO(Ren, "Enumerating physical device queues");
+        {
+            u32 QueuePropertieCount = 0;
+            VKC(vkGetPhysicalDeviceQueueFamilyProperties(driverGfx::PhysDevice, &QueuePropertieCount, NULL));
+            DSLOG_INFO(Ren, "Found %u queues", QueuePropertieCount);
+            VkQueueFamilyProperties QueueProperties[QueuePropertieCount];
+            VKC(vkGetPhysicalDeviceQueueFamilyProperties(driverGfx::PhysDevice, &QueuePropertieCount, QueueProperties));
+
+            //            TODO(clara): I should write better queue enumerating and finding code
+            for (u32 i = 0; i < QueuePropertieCount; i++) {
+                DSLOG_INFO(Ren, "    Found queue %u count %u timestampBits %x min transfer w %u h %u d %u bits %x",
+                         i, QueueProperties[i].queueCount, QueueProperties[i].timestampValidBits, QueueProperties[i].minImageTransferGranularity.width,
+                         QueueProperties[i].minImageTransferGranularity.height, QueueProperties[i].minImageTransferGranularity.depth,
+                         QueueProperties[i].queueFlags);
+
+                if (QueueProperties[i] .queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+                    DSLOG_INFO(Ren, "     Queue %u is capable of rendering", i);
+
+                }
+                if (QueueProperties[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+                    DSLOG_INFO(Ren, "     Queue %u is capable of transfering data", i);
+
+                }
+                if (QueueProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
+                    DSLOG_INFO(Ren, "     Queue %u is capable of compute,", i);
+
+                }
+                if (QueueProperties[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT) {
+                    DSLOG_INFO(Ren, "     Queue %u is capable of sparce binding", i);
+
+                }
+                if (QueueProperties[i].queueFlags & VK_QUEUE_PROTECTED_BIT) {
+                    DSLOG_INFO(Ren, "     Queue %u is protected", i);
+
+                }
+
+            }
+
+        }
+        DSLOG_INFO(Ren, "Enumerating device layers");
+        {
+            u32 ExtensionCount = 0;
+            VKC(vkEnumerateDeviceExtensionProperties(driverGfx::PhysDevice, NULL, &ExtensionCount, NULL));
+            DSLOG_INFO(Ren, "Found %u device extensions", ExtensionCount);
+            VkExtensionProperties Extensions[ExtensionCount];
+            VKC(vkEnumerateDeviceExtensionProperties(driverGfx::PhysDevice, NULL, &ExtensionCount, Extensions));
+
+        }
+        DSLOG_INFO(Ren, "Creating Vulkan device");
+        {
+            VkDeviceCreateInfo VkDeviceInfo { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+            VkDeviceInfo.pNext = NULL;
+            VkDeviceInfo.flags = 0;
+
+            static float QueuePriority = 1.0F;
+
+            VkDeviceQueueCreateInfo QueueCreate { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
+            QueueCreate.pNext = NULL;
+            QueueCreate.flags = 0;
+            QueueCreate.queueFamilyIndex = 0; //TODO(clara): This is only going to work on the quest 3 and maybe 2
+            QueueCreate.queueCount = 1;
+            QueueCreate.pQueuePriorities = &QueuePriority;
+
+            VkDeviceInfo.queueCreateInfoCount = 1;
+            VkDeviceInfo.pQueueCreateInfos = &QueueCreate;
+
+            VkDeviceInfo.enabledLayerCount = 0;
+            VkDeviceInfo.ppEnabledLayerNames = NULL;
+            if (WantedDeviceExtensionCount != 0) {
+                for (u32 i = 0; i < WantedDeviceExtensionCount; i++) {
+                    WantedDeviceExtensionPtr[i] = WantedDeviceExtensions[i];
+
+                }
+
+                VkDeviceInfo.enabledExtensionCount = 0;
+                VkDeviceInfo.ppEnabledExtensionNames = WantedDeviceExtensionPtr;
+
+            }
+            else {
+                VkDeviceInfo.enabledExtensionCount = 0;
+                VkDeviceInfo.ppEnabledExtensionNames = NULL;
+
+            }
+
+            VkDeviceInfo.pEnabledFeatures = NULL;
+
+            XrVulkanDeviceCreateInfoKHR XrDeviceInfo { XR_TYPE_VULKAN_DEVICE_CREATE_INFO_KHR };
+            XrDeviceInfo.next = NULL;
+            XrDeviceInfo.systemId = vr::SystemId;
+            XrDeviceInfo.createFlags = 0;
+            XrDeviceInfo.pfnGetInstanceProcAddr = vkGetInstanceProcAddr;
+            XrDeviceInfo.vulkanPhysicalDevice = driverGfx::PhysDevice;
+            XrDeviceInfo.vulkanCreateInfo = &VkDeviceInfo;
+            XrDeviceInfo.vulkanAllocator = driverGfx::AllocCb;
+
+            VkResult VkDeviceResult;
+            PFN_xrCreateVulkanDeviceKHR DeviceFuncion;
+            OXRC(xrGetInstanceProcAddr(vr::Instance, "xrCreateVulkanDeviceKHR", (PFN_vkVoidFunction*) & DeviceFuncion));
+            XrResult XrDeviceResult = DeviceFuncion(vr::Instance, &XrDeviceInfo, &driverGfx::Device, &VkDeviceResult);
+            DSLOG_INFO(Ren, "Got code xr %i vk %i from OpenXR Vulkan device initialization", XrDeviceResult, VkDeviceResult);
 
         }
 

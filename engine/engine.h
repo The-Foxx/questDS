@@ -22,7 +22,6 @@ namespace DS{
     struct engineConfig{
         static inline android_app* AppPtr;
         static inline void* JavaVMPtr;
-        static inline void* JNIEnvPtr;
         static inline bool IsShuttingDown = false;
 
     };

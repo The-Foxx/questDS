@@ -23,6 +23,9 @@ namespace DS{
     struct vr {
         inline static XrInstance Instance = XR_NULL_HANDLE;
         inline static XrSystemId SystemId = 0;
+        inline static bool eyeChangeRes = false;
+        inline static u32 eyeWidth = 0;
+        inline static u32 eyeHeight = 0;
 
     };
 
@@ -31,6 +34,8 @@ namespace DS{
     XrBool32 debugCallbackHandleing(XrDebugUtilsMessageSeverityFlagsEXT Severity,
                                     XrDebugUtilsMessageTypeFlagsEXT Type,
                                     const XrDebugUtilsMessengerCallbackDataEXT* Data, void* UserData);
+
+    const char* xrEnvironmentBlendModeStr(XrEnvironmentBlendMode In);
     const char* xrResultStr(XrResult In);
 
 }

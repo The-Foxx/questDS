@@ -16,6 +16,7 @@
 #include "log.h"
 #include "base.h"
 #include "vr.h"
+#include "drivergfx_init.h"
 #include "jni.h"
 #include "lib/android_native_app_glue.h"
 
@@ -27,7 +28,7 @@ using namespace DS;
 extern "C" {
     JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
         engineConfig::JavaVMPtr = vm;
-        vm->AttachCurrentThread((JNIEnv**)&engineConfig::JNIEnvPtr, NULL);
+        //vm->AttachCurrentThread((JNIEnv**)&engineConfig::JNIEnvPtr, NULL);
 
     }
 
@@ -62,6 +63,7 @@ void ds_main(){
 
     job_internalinit();
     oxrEarlyInit();
+    driverInitVk();
 
 }
 

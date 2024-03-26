@@ -34,7 +34,7 @@ namespace DS{
 
             //DSLOG_INFO(Oxr, "Got vm ptr %x", AndroidPtr);
             //DSLOG_INFO(Oxr, "Got Activity ptr %x", AndroidPtr->activity);
-            DSLOG_INFO(Oxr, "Got vm ptr %x", engineConfig::JavaVMPtr);
+            DSLOG_INFO(Oxr, "Got vm ptr %lx", (unsigned long)engineConfig::JavaVMPtr);
             //DSLOG_INFO(Oxr, "Got clazz ptr %x", engineConfig::AppPtr->activity->clazz);
             //LoaderInfo.applicationVM = AndroidPtr->activity->vm;
             //LoaderInfo.applicationContext = AndroidPtr->activity->clazz;
@@ -171,6 +171,60 @@ namespace DS{
                 OXRC(xrGetViewConfigurationProperties(vr::Instance, vr::SystemId, ViewConfigTypes[i], &ViewConfigProp));
                 DSLOG_INFO(Oxr, "HasFOVMutable %u", ViewConfigProp.fovMutable);
 
+                u32 ViewConfigCount = 0;
+                OXRC(xrEnumerateViewConfigurationViews(vr::Instance, vr::SystemId, ViewConfigTypes[i], ViewConfigCount, &ViewConfigCount,
+                                                       NULL));
+
+                DSLOG_INFO(Oxr, "Found %u view config views (yes that's an actuall openxr therm)", ViewConfigCount);
+
+                if (ViewConfigCount != 2) {
+                    DSLOG_ERROR(Oxr, "Number of OpenXR views is not 2 but %u, we do not support OpenXR devices with anything but 2 views",
+                                ViewConfigCount);
+
+                }
+
+                if (ViewConfigCount != 0) {
+                    XrViewConfigurationView ViewConfigs[ViewConfigCount];
+                    for (u32 i = 0; i < ViewConfigCount; i++) {
+                        ViewConfigs[i].type = XR_TYPE_VIEW_CONFIGURATION_VIEW;
+
+                    }
+
+                    OXRC(xrEnumerateViewConfigurationViews(vr::Instance, vr::SystemId, ViewConfigTypes[i],
+                                                           ViewConfigCount, &ViewConfigCount, ViewConfigs));
+
+                    for (u64 i = 0; i < ViewConfigCount; i++) {
+                        DSLOG_INFO(Oxr, "      View %lu, recomended w/h: %u/%u, max w/h: %u/%u, sample count: max %u min %u",
+                                   i, ViewConfigs[i].recommendedImageRectWidth, ViewConfigs[i].recommendedImageRectHeight,
+                                   ViewConfigs[i].maxImageRectWidth, ViewConfigs[i].maxImageRectHeight,
+                                   ViewConfigs[i].recommendedSwapchainSampleCount, ViewConfigs[i].maxSwapchainSampleCount);
+
+                    }
+
+                    vr::eyeWidth = ViewConfigs[i].recommendedImageRectWidth;
+                    vr::eyeHeight = ViewConfigs[i].recommendedImageRectHeight;
+
+                    u32 EnviromentCount = 0;
+                    OXRC(xrEnumerateEnvironmentBlendModes(vr::Instance, vr::SystemId, ViewConfigTypes[i], EnviromentCount, &EnviromentCount, NULL));
+                    XrEnvironmentBlendMode Enviroments[EnviromentCount];
+                    OXRC(xrEnumerateEnvironmentBlendModes(vr::Instance, vr::SystemId, ViewConfigTypes[i], EnviromentCount, &EnviromentCount, Enviroments));
+
+                    bool isBlendModeFound = false;
+                    for (u64 i = 0; i < EnviromentCount; i++) {
+                        DSLOG_INFO(Oxr, "      Blend mode %lu %s", i, xrEnvironmentBlendModeStr(Enviroments[i]));
+                        if (isBlendModeFound == false && Enviroments[i] == XR_ENVIRONMENT_BLEND_MODE_OPAQUE) {
+                            DSLOG_INFO(Oxr, "       Chose enviroment blend mode %lu", i);
+
+                        }
+
+                    }
+
+                }
+                else {
+                    DSLOG_ERROR(Oxr, "View count is 0, something extremelly wrong happend here");
+
+                }
+
             }
 
         }
@@ -197,6 +251,27 @@ namespace DS{
                  Data->message, Data->functionName, Data->messageId);
 
         return XR_TRUE;
+
+    }
+
+    const char* xrEnvironmentBlendModeStr(XrEnvironmentBlendMode In) {
+        switch (In) {
+            case (XR_ENVIRONMENT_BLEND_MODE_OPAQUE):
+                return "XR_ENVIRONMENT_BLEND_MODE_OPAQUE";
+                break;
+            case (XR_ENVIRONMENT_BLEND_MODE_ADDITIVE):
+                return "XR_ENVIRONMENT_BLEND_MODE_ADDITIVE";
+                break;
+            case (XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND):
+                return "XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND";
+                break;
+            case (XR_ENVIRONMENT_BLEND_MODE_MAX_ENUM):
+                return "XR_ENVIRONMENT_BLEND_MODE_MAX_ENUM";
+                break;
+            default:
+                return "XR_ENVIROMENT_BLEND_MODE_STR_FAILURE";
+
+        }
 
     }
 
