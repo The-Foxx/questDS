@@ -1,2 +1,8 @@
 
 temp/
+
+makecapk/
+
+*.apk
+
+*.idsig
