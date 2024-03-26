@@ -64,6 +64,7 @@ void ds_main(){
     job_internalinit();
     oxrEarlyInit();
     driverInitVk();
+    oxrInit();
 
 }
 

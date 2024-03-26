@@ -26,6 +26,10 @@ namespace DS{
         inline static bool eyeChangeRes = false;
         inline static u32 eyeWidth = 0;
         inline static u32 eyeHeight = 0;
+        inline static XrSession Session;
+        inline static XrReferenceSpaceType WantedSpaceType = (XrReferenceSpaceType)0;
+        inline static XrSpace Spade;
+        inline static XrSwapchain Swapchain;
 
     };
 
@@ -34,7 +38,9 @@ namespace DS{
     XrBool32 debugCallbackHandleing(XrDebugUtilsMessageSeverityFlagsEXT Severity,
                                     XrDebugUtilsMessageTypeFlagsEXT Type,
                                     const XrDebugUtilsMessengerCallbackDataEXT* Data, void* UserData);
+    void oxrInit();
 
+    const char* xrReferenceSpaceTypeStr(XrReferenceSpaceType In);
     const char* xrEnvironmentBlendModeStr(XrEnvironmentBlendMode In);
     const char* xrResultStr(XrResult In);
 

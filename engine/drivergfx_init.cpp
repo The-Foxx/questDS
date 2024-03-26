@@ -63,6 +63,14 @@ namespace DS{
             }
 
         }
+        DSLOG_INFO(Ren, "Gathering OpenXR Vulkan requirements");
+        {
+            XrGraphicsRequirementsVulkan2KHR XrRequirements { XR_TYPE_GRAPHICS_REQUIREMENTS_VULKAN2_KHR };
+            PFN_xrGetVulkanGraphicsRequirements2KHR VkRequirementFuncPtr;
+            OXRC(xrGetInstanceProcAddr(vr::Instance, "xrGetVulkanGraphicsRequirements2KHR", (PFN_xrVoidFunction*)&VkRequirementFuncPtr));
+            OXRC(VkRequirementFuncPtr(vr::Instance, vr::SystemId, &XrRequirements));
+
+        }
         DSLOG_INFO(Ren, "Creating instance");
         {
             VkApplicationInfo AppInfo;
@@ -188,6 +196,10 @@ namespace DS{
             DSLOG_INFO(Ren, "Found %u device extensions", ExtensionCount);
             VkExtensionProperties Extensions[ExtensionCount];
             VKC(vkEnumerateDeviceExtensionProperties(driverGfx::PhysDevice, NULL, &ExtensionCount, Extensions));
+            for (u32 i = 0; i < ExtensionCount; i++) {
+                DSLOG_INFO(Ren, "   Extension %u %s specVer %u", i, Extensions[i].extensionName, Extensions[i].specVersion);
+
+            }
 
         }
         DSLOG_INFO(Ren, "Creating Vulkan device");

@@ -14,14 +14,21 @@
 
 #include "lib/android_native_app_glue.h"
 #include "vr.h"
+#include "drivergfx_renderer.h"
 #include "string.h"
 #include "engine.h"
 #define XR_USE_PLATFORM_ANDROID
+#define XR_USE_GRAPHICS_API_VULKAN
 #include "jni.h"
+#define VK_NO_PROTOTYPES
+#include "vulkan/vulkan.h"
 #include "openxr/openxr_platform.h"
+#include "drivergfx_util.h"
 
 namespace DS{
     static XrDebugUtilsMessengerEXT DebugMessenger = XR_NULL_HANDLE;
+    static VkFormat VrPipelineFormat;
+    static dmem<XrSwapchainImageVulkan2KHR> XrSwapchainImages{};
 
     void oxrEarlyInit() {
         DSLOG_INFO(Oxr, "Initializing openxr driver");
@@ -239,10 +246,10 @@ namespace DS{
 
     }
 
-    //void ovrEarlyInit() {
-        //DSLOG_INFO(Oxr, "Initializing VrApi");
+    void ovrEarlyInit() {
+        DSLOG_INFO(Oxr, "Initializing VrApi");
 
-    //}
+    }
 
     XrBool32 debugCallbackHandleing(XrDebugUtilsMessageSeverityFlagsEXT Severity,
                                     XrDebugUtilsMessageTypeFlagsEXT Type,
@@ -251,6 +258,159 @@ namespace DS{
                  Data->message, Data->functionName, Data->messageId);
 
         return XR_TRUE;
+
+    }
+
+    void oxrInit() {
+        DSLOG_INFO(Oxr, "Initializing OpenXR");
+        DSLOG_INFO(Oxr, "Creating OpenXR session");
+        {
+            XrGraphicsBindingVulkan2KHR Binding { XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR };
+            Binding.next = NULL;
+            Binding.instance = driverGfx::Instance;
+            Binding.physicalDevice = driverGfx::PhysDevice;
+            Binding.device = driverGfx::Device;
+            Binding.queueFamilyIndex = driverGfx::GraphicsQueueIndex;
+//            TODO(clara): This is fine because we only have 1 graphics queue !!
+            Binding.queueIndex = 0;
+
+            XrSessionCreateInfo SessionCreate { XR_TYPE_SESSION_CREATE_INFO };
+            SessionCreate.next = &Binding;
+            SessionCreate.createFlags = 0;
+            SessionCreate.systemId = vr::SystemId;
+            OXRC(xrCreateSession(vr::Instance, &SessionCreate, &vr::Session));
+
+        }
+        DSLOG_INFO(Oxr, "Enumerating reference spaces");
+        {
+            u32 ReferenceSpaceCount = 0;
+            OXRC(xrEnumerateReferenceSpaces(vr::Session, ReferenceSpaceCount, &ReferenceSpaceCount, NULL));
+            DSLOG_INFO(Oxr, "Found %u reference spaces", ReferenceSpaceCount);
+            XrReferenceSpaceType Spaces[ReferenceSpaceCount];
+            OXRC(xrEnumerateReferenceSpaces(vr::Session, ReferenceSpaceCount, &ReferenceSpaceCount, Spaces));
+            bool IsReferenceSpaceSelected = false;
+            for (u32 i = 0; i < ReferenceSpaceCount; i++) {
+                DSLOG_INFO(Oxr, "   Reference space %u type %s", i, xrReferenceSpaceTypeStr(Spaces[i]));
+
+                if (IsReferenceSpaceSelected == false && Spaces[i] == XR_REFERENCE_SPACE_TYPE_STAGE) {
+                    DSLOG_INFO(Oxr, "Found and selected referen space XR_REFERENCE_SPACE_TYPE_STAGE at index %u", i);
+                    vr::WantedSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+                    IsReferenceSpaceSelected = true;
+
+                }
+
+            }
+            if (IsReferenceSpaceSelected == false) {
+                DSLOG_INFO(Oxr, "Could not find adequate reference space, the engine will probabelly crash soon");
+
+            }
+
+        }
+        DSLOG_INFO(Oxr, "Creating OpenXR reference space");
+        {
+            XrReferenceSpaceCreateInfo CreateInfo { XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
+            CreateInfo.next = NULL;
+            CreateInfo.referenceSpaceType = vr::WantedSpaceType;
+            XrPosef ReferencePose;
+            ReferencePose.orientation = { 1.0F, 0.0F, 0.0F, 0.0F };
+            ReferencePose.position = { 0.0F, 0.0F, 0.0F };
+            CreateInfo.poseInReferenceSpace = ReferencePose;
+
+            OXRC(xrCreateReferenceSpace(vr::Session, &CreateInfo, &vr::Spade));
+
+        }
+        DSLOG_INFO(Oxr, "Creating swapchain");
+        {
+            XrSystemProperties SystemProperties { XR_TYPE_SYSTEM_PROPERTIES };
+            OXRC(xrGetSystemProperties(vr::Instance, vr::SystemId, &SystemProperties));
+            DSLOG_INFO(Oxr, "System name %s", SystemProperties.systemName);
+
+            u32 SwapchainFormatCount = 0;
+            OXRC(xrEnumerateSwapchainFormats(vr::Session, SwapchainFormatCount, &SwapchainFormatCount, NULL));
+            DSLOG_INFO(Oxr, "Found %u Vulkan swapchain", SwapchainFormatCount);
+            i64 SwapchainFormats[SwapchainFormatCount];
+            OXRC(xrEnumerateSwapchainFormats(vr::Session, SwapchainFormatCount, &SwapchainFormatCount, SwapchainFormats));
+
+            for (u32 i = 0; i < SwapchainFormatCount; i++) {
+                if (((VkFormat)SwapchainFormats[i]) == VK_FORMAT_R8G8B8A8_SRGB) {
+                    DSLOG_INFO(Oxr, "Found Format VK_FORMAT_R8G8B8A8_SRGB in list, proceding");
+                    break;
+                    
+                }
+                if (i == SwapchainFormatCount) {
+                    DSLOG_ERROR(Oxr, "Could not find VK_FORMAT_R8G8B8A8_SRGB in the swapchain formats !!");
+
+                }
+
+            }
+
+            VrPipelineFormat = VK_FORMAT_R8G8B8A8_SRGB;
+
+            XrSwapchainCreateInfo CreateInfo { XR_TYPE_SWAPCHAIN_CREATE_INFO };
+            CreateInfo.next = NULL;
+            CreateInfo.createFlags = 0;
+            CreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+            CreateInfo.format = VrPipelineFormat;
+            CreateInfo.sampleCount = 1;
+            CreateInfo.width = vr::eyeWidth;
+            CreateInfo.height = vr::eyeHeight;
+            CreateInfo.faceCount = 1;
+            CreateInfo.arraySize = 1;
+            CreateInfo.mipCount = 1;
+
+            XrResult SwapchainResult = xrCreateSwapchain(vr::Session, &CreateInfo, &vr::Swapchain);
+            DSLOG_INFO(Oxr, "Created swapchain with code %s", xrResultStr(SwapchainResult));
+
+            u32 SwapchainCapacity = 0;
+            OXRC(xrEnumerateSwapchainImages(vr::Swapchain, SwapchainCapacity, &SwapchainCapacity, NULL));
+            DSLOG_INFO(Oxr, "Runtime created %u vulkan swapchain images", SwapchainCapacity);
+
+            XrSwapchainImages.checkSize(SwapchainCapacity);
+            XrSwapchainImages.setSize(SwapchainCapacity);
+
+            XrSwapchainImageBaseHeader* XrPipelinePtr[SwapchainCapacity];
+            for (u32 i = 0; i < SwapchainCapacity; i++) {
+                XrPipelinePtr[i] = (XrSwapchainImageBaseHeader*)XrSwapchainImages.getPtr(i);
+                XrSwapchainImages.getPtr(i)->type = XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR;
+
+            }
+
+            OXRC(xrEnumerateSwapchainImages(vr::Swapchain, SwapchainCapacity, &SwapchainCapacity, XrPipelinePtr[0]));
+
+        }
+
+    }
+
+    const char* xrReferenceSpaceTypeStr(XrReferenceSpaceType In) {
+        switch (In) {
+            case (XR_REFERENCE_SPACE_TYPE_VIEW):
+                return "XR_REFERENCE_SPACE_TYPE_VIEW";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_LOCAL):
+                return "XR_REFERENCE_SPACE_TYPE_LOCAL";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_STAGE):
+                return "XR_REFERENCE_SPACE_TYPE_STAGE";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_UNBOUNDED_MSFT):
+                return "XR_REFERENCE_SPACE_TYPE_UNBOUNDED_MSFT";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_COMBINED_EYE_VARJO):
+                return "XR_REFERENCE_SPACE_TYPE_COMBINED_EYE_VARJO";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_LOCALIZATION_MAP_ML):
+                return "XR_REFERENCE_SPACE_TYPE_LOCALIZATION_MAP_ML";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT):
+                return "XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT";
+                break;
+            case (XR_REFERENCE_SPACE_TYPE_MAX_ENUM):
+                return "XR_REFERENCE_SPACE_TYPE_MAX_ENUM";
+                break;
+            default:
+                return "XR_REFERENCE_SPACE_tostr_ERROR";
+
+        }
 
     }
 

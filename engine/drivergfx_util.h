@@ -15,6 +15,8 @@
 #pragma once
 
 #include "base.h"
+#define VK_NO_PROTOTYPES
+#include "vulkan/vulkan_core.h"
 
 //TODO(clara): Implement
 #define VKC(Expression) Expression

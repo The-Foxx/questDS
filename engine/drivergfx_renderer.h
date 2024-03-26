@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "base.h"
 #define VK_NO_PROTOTYPES
 #include "vulkan/vulkan_core.h"
 
@@ -22,6 +23,8 @@ namespace DS{
         static inline VkInstance Instance = VK_NULL_HANDLE;
         static inline VkPhysicalDevice PhysDevice = VK_NULL_HANDLE;
         static inline VkDevice Device = VK_NULL_HANDLE;
+//        TODO(clara): This should be deduced from enumeration but we only target the quest so this is file for now
+        static inline u32 GraphicsQueueIndex = 0;
         static inline VkAllocationCallbacks* AllocCb = NULL;
 
     };
