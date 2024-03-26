@@ -5,11 +5,16 @@ all : makecapk.apk
 
 .PHONY : push run
 
+COLOUR_GREEN=\033[0;32m
+COLOUR_RED=\033[0;31m
+COLOUR_PURPLE=\033[0;35m
+COLOUR_END=\033[0m
+
 UPLOAD_COUNT=$(file < upload_count.txt)
 
 increment_upload_count:
 	$(eval UPLOAD_COUNT=$(shell echo $$(($(UPLOAD_COUNT)+1))))
-	@echo "Count of all the uploads to my quest 3 $(UPLOAD_COUNT) !!!!!"
+	@echo -e "$(COLOUR_PURPLE)Count of all the uploads to my quest 3 $(UPLOAD_COUNT) !!!!!$(COLOUR_END)"
 	@echo $(UPLOAD_COUNT) > upload_count.txt
 
 COMPILE_COUNT=$(file < compile_count.txt)
@@ -136,7 +141,7 @@ CPPLINK :=-Wl,-landroid -llog -shared -lopenxr_loader
 
 makecapk/lib/arm64-v8a/libDisrupt_b64.so : $(ENGINE_SOURCES)
 	$(eval COMPILE_COUNT=$(shell echo $$(($(COMPILE_COUNT)+1))))
-	@echo "Count of all engine compilation $(COMPILE_COUNT) !!!!!"
+	@echo -e "$(COLOUR_PURPLE)Count of all engine compilation $(COMPILE_COUNT) !!!!!$(COLOUR_END)"
 	@echo $(COMPILE_COUNT) > compile_count.txt
 	mkdir -p makecapk/lib/arm64-v8a
 	$(CPP_ARM64) $(CPPFLAGS_ARM64) $(CPPFLAGS) -o $@ $^ \
