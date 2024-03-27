@@ -1,0 +1,3 @@
+[submodule "svrui"]
+	path = svrui
+	url = https://github.com/The-Foxx/svrui.git
