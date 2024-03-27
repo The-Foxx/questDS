@@ -331,25 +331,39 @@ namespace DS{
             i64 SwapchainFormats[SwapchainFormatCount];
             OXRC(xrEnumerateSwapchainFormats(vr::Session, SwapchainFormatCount, &SwapchainFormatCount, SwapchainFormats));
 
+            bool IsColorSwapchain = false;
             for (u32 i = 0; i < SwapchainFormatCount; i++) {
-                if (((VkFormat)SwapchainFormats[i]) == VK_FORMAT_R8G8B8A8_SRGB) {
-                    DSLOG_INFO(Oxr, "Found Format VK_FORMAT_R8G8B8A8_SRGB in list, proceding");
-                    break;
-                    
+                if (((VkFormat)SwapchainFormats[i]) == VK_FORMAT_R8G8B8_SRGB && IsColorSwapchain == false) {
+                    DSLOG_INFO(Oxr, "Found Format VK_FORMAT_R8G8B8_SRGB in list, proceding");
+                    IsColorSwapchain = true;
+
                 }
-                if (i == SwapchainFormatCount) {
-                    DSLOG_ERROR(Oxr, "Could not find VK_FORMAT_R8G8B8A8_SRGB in the swapchain formats !!");
+
+                if (((VkFormat)SwapchainFormats[i]) == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+                    DSLOG_INFO(Oxr, "Found Format VK_FORMAT_D32_SFLOAT_S8_UINT at %u in list, proceding", i);
+                    IsColorSwapchain = true;
+
+                }
+
+                if (((VkFormat)SwapchainFormats[i]) == VK_FORMAT_D24_UNORM_S8_UINT) {
+                    DSLOG_INFO(Oxr, "Found Format VK_FORMAT_D24_UNORM_S8_UINT at %u in list, proceding", i);
+                    IsColorSwapchain = true;
 
                 }
 
             }
+            if (IsColorSwapchain != true) {
+                DSLOG_ERROR(Oxr, "Could not find VK_FORMAT_R8G8B8_SRGB in the swapchain formats !!");
 
-            VrPipelineFormat = VK_FORMAT_R8G8B8A8_SRGB;
+            }
+
+            VrPipelineFormat = VK_FORMAT_R8G8B8_SRGB;
 
             XrSwapchainCreateInfo CreateInfo { XR_TYPE_SWAPCHAIN_CREATE_INFO };
             CreateInfo.next = NULL;
             CreateInfo.createFlags = 0;
-            CreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+//            NOTE(clara): This used to have XR_SWAPCHAIN_USAGE_SAMPLED_BIT but i am betting that tiled based gpu's won't like sampling on swapchain
+            CreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
             CreateInfo.format = VrPipelineFormat;
             CreateInfo.sampleCount = 1;
             CreateInfo.width = vr::eyeWidth;
